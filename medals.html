@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>獎牌紀錄 - 節能習慣追蹤器</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>節能習慣追蹤器</h1>
+    <p class="subtitle">小習慣帶來大影響 — SDGs 7 / 11 / 13</p>
+    <nav>
+      <a href="home.html"><button>🏠 首頁</button></a>
+      <a href="behavior.html"><button>📋 行為表</button></a>
+      <a href="history.html"><button>📘 歷史紀錄</button></a>
+      <a href="medals.html"><button>🏅 獎牌紀錄</button></a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="card">
+      <h2>獎牌紀錄</h2>
+      <div id="medal-list"></div>
+    </section>
+  </main>
+
+    <script src="main.js"></script>
+    <script src="medals.js"></script>
+
+  <!-- Firebase：獎牌頁專用（讀取 / 寫入測試用獎牌） -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      getDocs,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // ✅ 和其他頁面一樣的 config（記得用這組）
+    const firebaseConfig = {
+      apiKey: "AIzaSyC1j-dogTtBDR3pt5KehghpJFbRbLcIpM",
+      authDomain: "energy-e1c4b.firebaseapp.com",
+      projectId: "energy-e1c4b",
+      storageBucket: "energy-e1c4b.firebasestorage.app",
+      messagingSenderId: "349372717450",
+      appId: "1:349372717450:web:1b1ebc5b0066a4acc89073"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    console.log("Firebase: medals.html 初始化完成");
+
+    const medalList = document.getElementById("medal-list");
+    const cardSection = document.querySelector(".card");
+
+    // 建一個「新增測試獎牌」按鈕（只為了測試寫入）
+    const testBtn = document.createElement("button");
+    testBtn.textContent = "新增一面測試獎牌（寫入 Firebase）";
+    testBtn.style.marginTop = "16px";
+    cardSection.appendChild(testBtn);
+
+    testBtn.addEventListener("click", async () => {
+      try {
+        await addDoc(collection(db, "testMedals"), {
+          name: "測試獎牌",
+          reason: "手動新增測試用",
+          createdAt: serverTimestamp()
+        });
+
+        alert("✅ 已成功寫入一面測試獎牌到 Firebase！");
+        await loadMedals(); // 寫完重載列表
+      } catch (err) {
+        console.error("寫入獎牌失敗：", err);
+        alert("寫入 Firebase 失敗，請開 F12 看錯誤訊息");
+      }
+    });
+
+    // 讀取所有獎牌紀錄
+    async function loadMedals() {
+      try {
+        const snap = await getDocs(collection(db, "testMedals"));
+
+        if (snap.empty) {
+          medalList.innerHTML = "<p>目前沒有任何獎牌紀錄（Firebase）</p>";
+          return;
+        }
+
+        let html = "";
+        snap.forEach(docSnap => {
+          const data = docSnap.data();
+          const name = data.name || "未命名獎牌";
+          const reason = data.reason || "（無說明）";
+          const time = data.createdAt
+            ? data.createdAt.toDate().toLocaleString("zh-TW")
+            : "未知時間";
+
+          html += `
+            <div class="medal-item">
+              <p>🏅 <strong>${name}</strong></p>
+              <p>原因：${reason}</p>
+              <p class="small muted">獲得時間：${time}</p>
+              <hr>
+            </div>
+          `;
+        });
+
+        medalList.innerHTML = html;
+        console.log("✅ 已從 Firebase 載入獎牌紀錄");
+      } catch (err) {
+        console.error("讀取獎牌失敗：", err);
+        alert("讀取 Firebase 失敗，請開 F12 看錯誤訊息");
+      }
+    }
+
+    // 一進頁面就先載入一次
+    loadMedals();
+  </script>
+</body>
+</html>
+
+
+
+</body>
+</html>

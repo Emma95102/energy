@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>歷史紀錄 - 節能習慣追蹤器</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>節能習慣追蹤器</h1>
+    <p class="subtitle">小習慣帶來大影響 — SDGs 7 / 11 / 13</p>
+    <nav>
+      <a href="home.html"><button>🏠 首頁</button></a>
+      <a href="behavior.html"><button>📋 行為表</button></a>
+      <a href="history.html"><button>📘 歷史紀錄</button></a>
+      <a href="medals.html"><button>🏅 獎牌紀錄</button></a>
+    </nav>
+
+        <section class="card" id="fixed-animation">
+      <h3>本週進度與走路小動畫</h3>
+      <div id="track" class="track"><div id="walker" class="walker">🚶‍♂️</div></div>
+      <div class="row small">
+        <div>今日得分：<span id="today-points">0</span> 點</div>
+        <div>進度：<span id="week-points-2">0</span>/<span id="weekly-goal-2"></span></div>
+      </div>
+      <div id="medal-note" class="small muted"></div>
+    </section>
+  </header>
+
+  <main class="page">
+    <section class="card">
+      <h2>歷史紀錄</h2>
+      <div id="history-list"></div>
+      <div class="pager"><button id="prev-page">上一頁</button><span id="page-info"></span><button id="next-page">下一頁</button></div>
+    </section>
+  </main>
+
+    <script src="main.js"></script>
+    <script src="history.js"></script>
+
+  <!-- Firebase：歷史紀錄頁，從 Firestore 讀取 testDailyRecords -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import {
+      getFirestore,
+      collection,
+      getDocs
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // ✅ 和其他頁面一樣的設定（記得用這組）
+    const firebaseConfig = {
+      apiKey: "AIzaSyC1j-dogTtBDR3pt5KehghpJFbRbLcIpM",
+      authDomain: "energy-e1c4b.firebaseapp.com",
+      projectId: "energy-e1c4b",
+      storageBucket: "energy-e1c4b.firebasestorage.app",
+      messagingSenderId: "349372717450",
+      appId: "1:349372717450:web:1b1ebc5b0066a4acc89073"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    console.log("Firebase: history.html 初始化完成");
+
+    const historyList = document.getElementById("history-list");
+    const prevBtn = document.getElementById("prev-page");
+    const nextBtn = document.getElementById("next-page");
+    const pageInfo = document.getElementById("page-info");
+
+    // 先把原本的上一頁 / 下一頁關掉（暫時不用本地分頁）
+    if (prevBtn) prevBtn.disabled = true;
+    if (nextBtn) nextBtn.disabled = true;
+    if (pageInfo) pageInfo.textContent = "由 Firebase 載入";
+
+    async function loadHistoryFromFirebase() {
+      try {
+        // 目前行為表是寫到 testDailyRecords 這個集合
+        const snap = await getDocs(collection(db, "testDailyRecords"));
+
+        if (snap.empty) {
+          historyList.innerHTML = "<p>目前 Firebase 中沒有任何歷史紀錄。</p>";
+          alert("Firebase 中尚無歷史資料");
+          return;
+        }
+
+        // 收集並依日期排序（新到舊）
+        const items = [];
+        snap.forEach(docSnap => {
+          const data = docSnap.data();
+          items.push({
+            id: docSnap.id,
+            date: data.date || docSnap.id,
+            points: data.points || 0,
+            note: data.note || "（無）",
+            createdAt: data.createdAt || null
+          });
+        });
+
+        items.sort((a, b) => b.date.localeCompare(a.date)); // 字串日期排序
+
+        let html = "";
+        for (const item of items) {
+          const timeText = item.createdAt && item.createdAt.toDate
+            ? item.createdAt.toDate().toLocaleString("zh-TW")
+            : "時間未記錄";
+
+          html += `
+            <div class="history-item">
+              <h3>${item.date} — ${item.points} 點</h3>
+              <p><strong>備註：</strong>${item.note}</p>
+              <p class="small muted">寫入時間：${timeText}</p>
+              <hr>
+            </div>
+          `;
+        }
+
+        historyList.innerHTML = html;
+        if (pageInfo) pageInfo.textContent = `共 ${items.length} 筆紀錄`;
+        alert("✅ 已成功從 Firebase 載入歷史紀錄！");
+
+      } catch (err) {
+        console.error("讀取 Firebase 失敗：", err);
+        alert("讀取 Firebase 失敗，請打開 F12 的 Console 查看錯誤訊息");
+      }
+    }
+
+    // 進入頁面就讀一次
+    loadHistoryFromFirebase();
+  </script>
+</body>
+</html>
+
+</body>
+</html>
