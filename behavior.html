@@ -19,7 +19,9 @@
 
     <section class="card" id="fixed-animation">
       <h3>本週進度與走路小動畫</h3>
-      <div id="track" class="track"><div id="walker" class="walker">🚶‍♂️</div></div>
+      <div id="track" class="track">
+        <div id="walker" class="walker">🚶‍♂️</div>
+      </div>
       <div class="row small">
         <div>今日得分：<span id="today-points">0</span> 點</div>
         <div>進度：<span id="week-points-2">0</span>/<span id="weekly-goal-2"></span></div>
@@ -41,69 +43,27 @@
       <label for="note">今日備註（選填）</label>
       <textarea id="note" placeholder="寫下今天的小習慣或心得..."></textarea>
 
-      <div class="controls"><button id="save-btn">儲存今天的紀錄</button></div>
+      <div class="controls">
+        <button id="save-btn">儲存今天的紀錄</button>
+      </div>
+
+      <audio id="save-sound" src="audio/high-tech-bleep.mp3" type="audio/mp3"></audio>
     </section>
   </main>
-  <audio id="save-sound" src="audio/high-tech-bleep.mp3" type="audio/mp3"></audio>
-<!--  <audio id="save-sound" src="https://s17.aconvert.com/convert/p3r68-cdx67/nvn9w-7w6i8.mp3" preload="auto"></audio> -->
 
-  <footer class="footer"><small>每週從週一 00:00 為新週；一週達標將自動領取獎牌。</small></footer>
+  <footer class="footer">
+    <small>每週從週一 00:00 為新週；一週達標將自動領取獎牌。</small>
+  </footer>
 
+
+  <!-- 1️⃣ Firebase 初始化（只執行一次） -->
+  <script type="module" src="firebase.js"></script>
+
+  <!-- 2️⃣ 一般前端邏輯（非 module） -->
   <script src="main.js"></script>
-  <script src="behavior.js"></script>
 
-   <!-- 🔥 只在這個頁面測試寫入 Firestore -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+  <!-- 3️⃣ 行為表邏輯（module，會 import Firestore） -->
+  <script type="module" src="behavior.js"></script>
 
-    // ✅ 用 Firebase console 上那一組設定
-    const firebaseConfig = {
-      apiKey: "AIzaSyC1j-dOgTlBdQR3Tpt5KehghPJfbRblcpM",
-      authDomain: "energy-e1c4b.firebaseapp.com",
-      projectId: "energy-e1c4b",
-      storageBucket: "energy-e1c4b.firebasestorage.app",
-      messagingSenderId: "349372717450",
-      appId: "1:349372717450:web:1b1ebc5b0066a4acc89073"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    console.log("Firebase for behavior.html 初始化完成");
-
-    const saveBtn = document.getElementById("save-btn");
-    const noteEl = document.getElementById("note");
-    const todayPointsEl = document.getElementById("today-points");
-
-    if (saveBtn) {
-      saveBtn.addEventListener("click", async () => {
-        const today = new Date().toISOString().split("T")[0];
-        const note = noteEl ? (noteEl.value || "") : "";
-        const points = todayPointsEl ? Number(todayPointsEl.textContent || "0") : 0;
-
-        try {
-          // ⬇⬇ 測試用：寫到 testDailyRecords 這個集合
-          await setDoc(
-            doc(db, "testDailyRecords", today),
-            {
-              date: today,
-              points: points,
-              note: note,
-              createdAt: serverTimestamp()
-            },
-            { merge: true }
-          );
-
-          alert("已寫入 Firebase！（集合：testDailyRecords）");
-        } catch (err) {
-          console.error("寫入 Firebase 失敗：", err);
-          alert("寫入 Firebase 失敗，請打開 F12 的 Console 看錯誤訊息");
-        }
-      });
-    } else {
-      console.warn("找不到 #save-btn 按鈕");
-    }
-  </script>
 </body>
 </html>
