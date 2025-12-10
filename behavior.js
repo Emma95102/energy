@@ -1,79 +1,185 @@
-// 這個檔案專門負責：
-// 1. 把「行為表」的今日紀錄寫入 Firestore
-// 2. 同時建立 users / dailyRecords / history 結構
+// -----------------------------
+// 原本前端行為邏輯（保留）
+// -----------------------------
+const taskListEl = document.getElementById("task-list");
+const noteEl = document.getElementById("note");
+const saveBtn = document.getElementById("save-btn");
+const todayPointsEl = document.getElementById("today-points");
+const weekPointsEl = document.getElementById("week-points");
+const weekPointsEl2 = document.getElementById("week-points-2");
+const weeklyGoalLabel = document.getElementById("weekly-goal-label");
+const weeklyGoalLabel2 = document.getElementById("weekly-goal-2");
+const track = document.getElementById("track");
+const walker = document.getElementById("walker");
+const medalNote = document.getElementById("medal-note");
+const saveSound = document.getElementById("save-sound");
 
-// 從 firebase.js 暴露出來的全域物件
+weeklyGoalLabel.textContent = WEEKLY_GOAL;
+weeklyGoalLabel2.textContent = WEEKLY_GOAL;
+
+renderTasks();
+updatePoints();
+renderWalker();
+
+function renderTasks() {
+  taskListEl.innerHTML = "";
+  TASKS.forEach((t, idx) => {
+    const doneToday = store.tasksDone[idx] === getToday();
+    const div = document.createElement("div");
+    div.className = "task";
+
+    const left = document.createElement("div");
+    left.innerHTML = `
+      <div class="name">${t.name}</div>
+      <div class="points small muted">${t.points} 點</div>
+    `;
+
+    const btn = document.createElement("button");
+    btn.textContent = doneToday ? "已完成" : `+${t.points}`;
+    if (doneToday) btn.disabled = true;
+    btn.addEventListener("click", () => markTask(idx));
+
+    div.appendChild(left);
+    div.appendChild(btn);
+
+    taskListEl.appendChild(div);
+  });
+}
+
+function markTask(idx) {
+  const t = TASKS[idx];
+
+  if (store.tasksDone[idx] === getToday()) return;
+  if (store.weeklyTotal + t.points > WEEKLY_GOAL) {
+    alert(`加上此項目會超過本週上限 ${WEEKLY_GOAL} 點`);
+    return;
+  }
+
+  store.tasksDone[idx] = getToday();
+  store.weeklyTotal += t.points;
+
+  saveStore();
+  renderTasks();
+  updatePoints();
+  renderWalker();
+}
+
+function updatePoints() {
+  const today = getToday();
+  const todayPoints = Object.keys(store.tasksDone).reduce(
+    (s, k) => (store.tasksDone[k] === today ? s + TASKS[k].points : s),
+    0
+  );
+
+  todayPointsEl.textContent = todayPoints;
+  weekPointsEl.textContent = store.weeklyTotal;
+  weekPointsEl2.textContent = store.weeklyTotal;
+}
+
+function renderWalker() {
+  const trackWidth = Math.max(track.clientWidth - 48, 24);
+  const ratio = Math.min(store.weeklyTotal / WEEKLY_GOAL, 1);
+  walker.style.left = 8 + Math.round(ratio * trackWidth) + "px";
+}
+
+// -----------------------------
+// 🔥 Firebase：寫入使用者今日紀錄
+// -----------------------------
+
+// 取用 firebase.js 公開出來的全域變數
 const db = window.firebaseDB;
 const { doc, setDoc, addDoc, collection, serverTimestamp } = window.firestore;
 
-// 取得登入的「使用者名稱」（目前仍用 localStorage）
+// 取得登入使用者名稱
 function getUsername() {
   const name = localStorage.getItem("username");
   return name ? name.trim() : "";
 }
 
-// 綁定「儲存今天的紀錄」按鈕
-const saveBtn = document.getElementById("save-btn");
-if (saveBtn) {
-  saveBtn.addEventListener("click", saveTodayToFirebase);
-}
+// 綁定儲存按鈕
+saveBtn.addEventListener("click", saveTodayRecord);
 
-async function saveTodayToFirebase() {
+
+async function saveTodayRecord() {
+  const today = getToday();
+
+  // 蒐集今日任務（原有邏輯）
+  const actions = Object.keys(store.tasksDone)
+    .filter((i) => store.tasksDone[i] === today)
+    .map(Number);
+
+  const points = actions.reduce((s, i) => s + TASKS[i].points, 0);
+  const note = noteEl.value.trim();
+
+  // ------------------------
+  // 1️⃣ 本地先存（保留）
+  // ------------------------
+  store.history.unshift({
+    date: today,
+    actions,
+    points,
+    note,
+    timestamp: new Date().toISOString(),
+  });
+  saveStore();
+
+  // 播放音效
+  try {
+    saveSound.currentTime = 0;
+    saveSound.play();
+  } catch (e) {}
+
+  updatePoints();
+  renderWalker();
+
+  // ------------------------
+  // 2️⃣ Firebase 保存（新增部分）
+  // ------------------------
   const username = getUsername();
   if (!username) {
-    alert("找不到使用者名稱，請先回登入頁重新登入一次。");
+    alert("找不到使用者名稱。請重新登入！");
     return;
   }
 
-  // 取得今天日期（YYYY-MM-DD）
-  const today = new Date().toISOString().split("T")[0];
-
-  // 讀取畫面上的今日得分與備註
-  const pointsEl = document.getElementById("today-points");
-  const noteEl = document.getElementById("note");
-
-  const points = pointsEl ? Number(pointsEl.textContent || "0") : 0;
-  const note = noteEl ? noteEl.value || "" : "";
-
   try {
-    // 0. 建立 / 更新 users 主文件（以 username 當作 uid）
+    // 2-1. 建立 / 更新使用者主文件
     await setDoc(
       doc(db, "users", username),
       {
         displayName: username,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       },
       { merge: true }
     );
 
-    // 1. 寫入每日紀錄：users/{username}/dailyRecords/{today}
+    // 2-2. 寫入每日紀錄
     await setDoc(
       doc(db, "users", username, "dailyRecords", today),
       {
         date: today,
-        points: points,
-        note: note,
-        savedAt: serverTimestamp()
+        actions,
+        points,
+        note,
+        savedAt: serverTimestamp(),
       },
       { merge: true }
     );
 
-    // 2. 寫入歷史紀錄：users/{username}/history/{autoId}
-    await addDoc(
-      collection(db, "users", username, "history"),
-      {
-        date: today,
-        points: points,
-        note: note,
-        action: "save_daily",
-        createdAt: serverTimestamp()
-      }
-    );
+    // 2-3. 寫入歷史紀錄（autoId）
+    await addDoc(collection(db, "users", username, "history"), {
+      date: today,
+      actions,
+      points,
+      note,
+      type: "daily_save",
+      createdAt: serverTimestamp(),
+    });
 
-    console.log("✅ 已寫入 Firebase");
-    // 這裡不 alert，避免跟原本 behavior.js 的提示打架
+    alert("（Firebase）今日紀錄已成功寫入！");
+    console.log("🔥 Firebase 寫入成功");
+
   } catch (err) {
-    console.error("寫入 Firebase 失敗：", err);
-    alert("寫入 Firebase 失敗，請看 console 錯誤訊息。");
+    console.error("🔥 Firebase 寫入失敗：", err);
+    alert("寫入 Firebase 時發生錯誤，請查看 Console 錯誤訊息！");
   }
 }
